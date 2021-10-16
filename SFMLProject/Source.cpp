@@ -1,4 +1,5 @@
 #include "SFML-2.5.1\include\SFML\Graphics.hpp"
+#include "SFML-2.5.1/include/SFML/Audio.hpp"
 #include <vector>
 #include "Hero.h"
 #include "Enemy.h"
@@ -12,6 +13,7 @@ void spawnEnemy();
 void shoot();
 
 bool checkCollision(sf::Sprite sprite1, sf::Sprite sprite2);
+void reset();
 
 sf::Texture skyTexture;
 sf::Sprite skySprite;
@@ -27,7 +29,30 @@ std::vector<Rocket*> rockets;
 float currentTime;
 float prevTime = 0.0f;
 
+int score = 0;
+bool gameover = true;
+
+//Text
+sf::Font headingFont;
+sf::Text headingText;
+
+sf::Font scoreFont;
+sf::Text scoreText;
+
+sf::Text tutorialText;
+
+// Audio
+sf::Music  bgMusic;
+
+// Sounds
+sf::SoundBuffer fireBuffer;
+sf::SoundBuffer hitBuffer;
+
+sf::Sound fireSound(fireBuffer);
+sf::Sound hitSound(hitBuffer);
+
 void init(){
+
 	//Load sky texture
 	skyTexture.loadFromFile("Assets/graphics/sky.png");
 	//Load Background texture
@@ -36,9 +61,57 @@ void init(){
 	skySprite.setTexture(skyTexture);
 	bgSprite.setTexture(bgTexture);
 
-	hero.init("Assets/graphics/hero.png", sf::Vector2f(viewSize.x * 0.2f, viewSize.y * 0.5f), 200);
+	//Load Font
+	headingFont.loadFromFile("Assets/fonts/snackerComic.ttf");
+	scoreFont.loadFromFile("Assets/fonts/arial.ttf");
+
+	// Set Heading Text
+	headingText.setFont(headingFont);
+	headingText.setString("Tiny Bazooka");
+	headingText.setCharacterSize(84);
+	headingText.setFillColor(sf::Color::Red);
+
+	sf::FloatRect headingBounds = headingText.getLocalBounds();
+	headingText.setOrigin(headingBounds.width / 2, headingBounds.height / 2);
+	headingText.setPosition(sf::Vector2f(viewSize.x * 0.5f, viewSize.y * 0.10f));
+
+	// Set Score Text
+	scoreText.setFont(scoreFont);
+	scoreText.setString("Score: 0");
+	scoreText.setCharacterSize(45);
+	scoreText.setFillColor(sf::Color::Red);
+
+	sf::FloatRect scorebouns = scoreText.getLocalBounds();
+	scoreText.setOrigin(scorebouns.width / 2, scorebouns.height / 2);
+	scoreText.setPosition(sf::Vector2f(viewSize.x * 0.5f, viewSize.y * 0.10f));
+
+	// Set Tutorial Text
+	tutorialText.setFont(scoreFont);
+	tutorialText.setString("Press Down Arrow to Fire and Start Game, Up Arrow to Jump");
+	tutorialText.setCharacterSize(35);
+	tutorialText.setFillColor(sf::Color::Red);
+
+	sf::FloatRect tutorialbounds = tutorialText.getLocalBounds();
+	tutorialText.setOrigin(tutorialbounds.width / 2, tutorialbounds.height / 2);
+	tutorialText.setPosition(sf::Vector2f(viewSize.x * 0.5f, viewSize.y * 0.20f));
+
+	hero.init
+	(
+		"Assets/graphics/heroAnim.png", 
+		4, 
+		1.0f, 
+		sf::Vector2f(viewSize.x * 0.2f, viewSize.y * 0.5f), 
+		200
+	);
 
 	srand((int)time(0));
+
+	// Audio
+	bgMusic.openFromFile("Assets/audio/bgMusic.ogg");
+	bgMusic.play();
+
+	hitBuffer.loadFromFile("Assets/audio/hit.ogg");
+	fireBuffer.loadFromFile("Assets/audio/fire.ogg");
 
 }
 
@@ -57,6 +130,18 @@ void draw() {
 	for (Rocket* rocket : rockets) {
 
 		window.draw(rocket->getSprite());
+
+	}
+
+	if (gameover) {
+
+		window.draw(headingText);
+		window.draw(tutorialText);
+
+	}
+	else {
+
+		window.draw(scoreText);
 
 	}
 
@@ -79,7 +164,17 @@ void updateInput() {
 
 			if (event.key.code == sf::Keyboard::Down) {
 
-				shoot();
+				if (gameover) {
+
+					gameover = false;
+					reset();
+
+				}
+				else {
+
+					shoot();
+
+				}
 
 			}
 
@@ -114,6 +209,7 @@ void update(float dt) {
 			
 			enemies.erase(enemies.begin() + i);
 			delete(enemy);
+			gameover = true;
 
 		}
 
@@ -144,6 +240,15 @@ void update(float dt) {
 
 			if (checkCollision(rocket->getSprite(), enemy->getSprite())) {
 
+				hitSound.play();
+
+				score++;
+				std::string finalScore = "Score: " + std::to_string(score);
+				scoreText.setString(finalScore);
+				sf::FloatRect scorebounds = scoreText.getLocalBounds();
+				scoreText.setOrigin(scorebounds.width / 2, scorebounds.height / 2);
+				scoreText.setPosition(sf::Vector2f(viewSize.x * 0.5f, viewSize.y * 0.10f));
+
 				rockets.erase(rockets.begin() + i);
 				enemies.erase(enemies.begin() + j);
 
@@ -168,23 +273,23 @@ int main(){
 	//Initialize Game Objects
 	init();
 
-	while (window.isOpen())
-	{
-		//Handle keyboard events
-		
+	while (window.isOpen()) {
 
 		//Update game objects in the scene
 		updateInput();
-		
-		//Update Game
-		sf::Time dt = clock.restart();
-		update(dt.asSeconds());
 
+		// ++ Update Game ++
+		sf::Time dt = clock.restart();
+		if (!gameover)
+			update(dt.asSeconds());
+
+		// ++ Draw Game ++
 		window.clear(sf::Color::Red);
 		draw();
 
 		//Render game objects
 		window.display();
+
 	}
 
 
@@ -231,6 +336,7 @@ void shoot() {
 
 	rocket->init("Assets/graphics/rocket.png", hero.getSprite().getPosition(), 400.0f);
 	rockets.push_back(rocket);
+	fireSound.play();
 
 }
 
@@ -243,4 +349,28 @@ bool checkCollision(sf::Sprite sprite1, sf::Sprite sprite2) {
 		return true;
 	else
 		return false;
+}
+
+void reset() {
+
+	score = 0;
+	currentTime = 0.0f;
+	prevTime = 0.0;
+	scoreText.setString("Score: 0");
+
+	for (Enemy* enemy : enemies) {
+
+		delete(enemy);
+
+	}
+
+	for (Rocket* rocket : rockets) {
+
+		delete(rocket);
+
+	}
+
+	enemies.clear();
+	rockets.clear();
+
 }
